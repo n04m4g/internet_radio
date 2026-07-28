@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  audio_service resolves its notification and media session icons by name at
+  runtime, so the release build's resource shrinker sees no references and
+  strips them. The icon id then resolves to 0 and building the media controls
+  throws "You must specify an icon resource id to build a CustomAction",
+  which leaves playback with no notification and no lock screen controls.
+-->
+<resources
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/audio_service_*" />

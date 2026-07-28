@@ -1,0 +1,10 @@
+# Copy to key.properties (gitignored) and fill in real values.
+# Generate a keystore once, then keep the .jks + passwords in a password manager.
+#
+#   keytool -genkeypair -v -keystore release-keystore.jks -storetype PKCS12 \
+#     -alias release -keyalg RSA -keysize 2048 -validity 10000
+#
+storePassword=your-store-password
+keyPassword=your-key-password
+keyAlias=release
+storeFile=../release-keystore.jks

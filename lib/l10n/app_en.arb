@@ -1,0 +1,120 @@
+{
+  "@@locale": "en",
+  "appTitle": "Internet Radio",
+  "tabIsrael": "Israel",
+  "tabFavorites": "Favorites",
+  "tabWorld": "World",
+  "settingsTooltip": "Settings",
+  "dismissTooltip": "Dismiss",
+  "emptyIsraelStations": "No Israel stations configured.",
+  "emptyFavorites": "Tap the heart on a station to save it here.",
+  "emptyWorldStations": "No world stations configured.",
+  "notificationsBlocked": "Notifications are blocked, so the player will not show up on the lock screen or in the notification area.",
+  "notNow": "Not now",
+  "openSettings": "Open settings",
+  "settingsTitle": "Settings",
+  "autoPlayLastStation": "Auto-play last station",
+  "autoPlayLastStationHint": "When enabled, start the station you played last time the app opened.",
+  "autoPlayWillStartWith": "Will start with {station} next launch.",
+  "@autoPlayWillStartWith": {
+    "placeholders": {
+      "station": {
+        "type": "String"
+      }
+    }
+  },
+  "streamBuffer": "Stream buffer",
+  "bufferLow": "Low",
+  "bufferNormal": "Normal",
+  "bufferHigh": "High",
+  "bufferLowDescription": "Faster start, may stutter on weak networks.",
+  "bufferNormalDescription": "Balanced startup time and stability.",
+  "bufferHighDescription": "More stable on mobile data, slower to start.",
+  "refreshStreamCache": "Refresh stream cache",
+  "streamCacheEmpty": "No streams cached yet. Streams are kept for a week after they are first played.",
+  "streamCacheCount": "{count, plural, =1{1 stream cached. Clear it to look everything up again.} other{{count} streams cached. Clear them to look everything up again.}}",
+  "@streamCacheCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "streamCacheCleared": "Stream cache cleared. Streams reload on next play.",
+  "aboutTitle": "About",
+  "aboutBody": "An internet radio app.\nVersion {version}\nDeveloped by Noam Ran",
+  "@aboutBody": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "nowPlayingTitle": "Now Playing",
+  "nothingPlaying": "Nothing is playing right now.",
+  "addFavorite": "Add favorite",
+  "removeFavorite": "Remove favorite",
+  "play": "Play",
+  "pause": "Pause",
+  "stop": "Stop",
+  "refreshStream": "Refresh stream",
+  "quality": "Quality",
+  "homepage": "Homepage",
+  "onAir": "On air",
+  "copied": "{label} copied",
+  "@copied": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "stateStopped": "Stopped",
+  "stateConnecting": "Connecting",
+  "stateBuffering": "Buffering",
+  "statePlaying": "Playing",
+  "statePaused": "Paused",
+  "stateEnded": "Ended",
+  "stateError": "Error",
+  "connectingEllipsis": "Connecting…",
+  "live": "Live",
+  "playbackStoppedUnexpectedly": "Playback stopped unexpectedly.",
+  "playbackOfStationStopped": "Playback of {station} stopped unexpectedly.",
+  "@playbackOfStationStopped": {
+    "placeholders": {
+      "station": {
+        "type": "String"
+      }
+    }
+  },
+  "noStreamFound": "No stream found for {station}. Check your connection and try again.",
+  "@noStreamFound": {
+    "placeholders": {
+      "station": {
+        "type": "String"
+      }
+    }
+  },
+  "streamFailedRefreshing": "Stream failed. Refreshing from Radio Browser…",
+  "updatedStreamSaved": "Updated stream saved for a week.",
+  "couldNotPlayStation": "Could not play {station}. The stream may be offline.",
+  "@couldNotPlayStation": {
+    "placeholders": {
+      "station": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshingStream": "Refreshing stream from Radio Browser…",
+  "streamRefreshed": "Stream refreshed.",
+  "couldNotPlayRefreshedStream": "Could not play the refreshed stream.",
+  "couldNotRefreshStation": "Could not refresh the stream for {station}.",
+  "@couldNotRefreshStation": {
+    "placeholders": {
+      "station": {
+        "type": "String"
+      }
+    }
+  },
+  "couldNotResumePlayback": "Could not resume playback."
+}

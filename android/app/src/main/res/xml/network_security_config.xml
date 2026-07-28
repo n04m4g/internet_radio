@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext is permitted because Radio Browser stream hosts are arbitrary
+  third-party servers and many live streams are still HTTP-only. A host
+  whitelist is not practical. HTTPS is preferred when the directory offers it.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
