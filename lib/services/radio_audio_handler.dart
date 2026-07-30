@@ -54,6 +54,13 @@ class RadioAudioHandler extends BaseAudioHandler {
   /// False while a new source is loading; ICY is ignored until load succeeds.
   bool _icyActive = false;
 
+  /// User wants audio to be playing. Pause/stop clear this so a late
+  /// [AudioPlayer.play] cannot keep sound going against the notification UI.
+  bool _playWhenReady = false;
+
+  /// Guards re-entrant pause/stop when enforcing intent against player events.
+  bool _enforcingIntent = false;
+
   final List<StreamSubscription<dynamic>> _playerSubs = [];
 
   Station? get currentStation => _current;
@@ -73,14 +80,14 @@ class RadioAudioHandler extends BaseAudioHandler {
       ..clear()
       ..addAll([
         _player.playbackEventStream.listen(
-          (_) => _broadcastState(),
+          (_) => _onPlayerTransportEvent(),
           onError: _onPlaybackError,
         ),
-        _player.playerStateStream.listen((_) => _broadcastState()),
+        _player.playerStateStream.listen((_) => _onPlayerTransportEvent()),
         _player.icyMetadataStream.listen(_onIcyMetadata),
         _player.processingStateStream.listen((state) {
           if (state == ProcessingState.completed) {
-            stop();
+            unawaited(stop());
           }
         }),
       ]);
@@ -88,11 +95,9 @@ class RadioAudioHandler extends BaseAudioHandler {
 
   void _onPlaybackError(Object error, StackTrace stackTrace) {
     debugPrint('RadioAudioHandler playback error: $error\n$stackTrace');
-    playbackState.add(
-      playbackState.value.copyWith(
-        processingState: AudioProcessingState.error,
-        playing: false,
-      ),
+    _playWhenReady = false;
+    _publishTransportState(
+      processingOverride: AudioProcessingState.error,
     );
   }
 
@@ -106,7 +111,7 @@ class RadioAudioHandler extends BaseAudioHandler {
     _recreatingPlayer = true;
     final station = _current;
     final stream = _currentStream;
-    final shouldResume = _player.playing && station != null && stream != null;
+    final shouldResume = _playWhenReady && station != null && stream != null;
     final resumeStation = shouldResume ? station : null;
     final resumeStream = shouldResume ? stream : null;
 
@@ -123,7 +128,7 @@ class RadioAudioHandler extends BaseAudioHandler {
       if (resumeStation != null && resumeStream != null) {
         await playStation(resumeStation, resumeStream);
       } else {
-        _broadcastState();
+        _publishTransportState();
       }
     } catch (e, st) {
       debugPrint('Failed to apply buffer size $size: $e\n$st');
@@ -215,11 +220,9 @@ class RadioAudioHandler extends BaseAudioHandler {
 
   Future<void> playStation(Station station, ResolvedStream stream) async {
     if (!ResolvedStream.isPlayableUrl(stream.streamUrl)) {
-      playbackState.add(
-        playbackState.value.copyWith(
-          processingState: AudioProcessingState.error,
-          playing: false,
-        ),
+      _playWhenReady = false;
+      _publishTransportState(
+        processingOverride: AudioProcessingState.error,
       );
       throw ArgumentError.value(
         stream.streamUrl,
@@ -230,6 +233,7 @@ class RadioAudioHandler extends BaseAudioHandler {
 
     final generation = ++_sourceGeneration;
     _icyActive = false;
+    _playWhenReady = false;
     _current = station;
     _currentStream = stream;
 
@@ -241,16 +245,8 @@ class RadioAudioHandler extends BaseAudioHandler {
       extras: <String, dynamic>{'streamUrl': stream.streamUrl},
     );
     mediaItem.add(item);
-    playbackState.add(
-      playbackState.value.copyWith(
-        controls: const [
-          MediaControl.pause,
-          MediaControl.stop,
-        ],
-        androidCompactActionIndices: const [0, 1],
-        processingState: AudioProcessingState.loading,
-        playing: false,
-      ),
+    _publishTransportState(
+      processingOverride: AudioProcessingState.loading,
     );
 
     try {
@@ -263,11 +259,9 @@ class RadioAudioHandler extends BaseAudioHandler {
       debugPrint('RadioAudioHandler could not load ${stream.streamUrl}: '
           '$e\n$st');
       if (generation == _sourceGeneration) {
-        playbackState.add(
-          playbackState.value.copyWith(
-            processingState: AudioProcessingState.error,
-            playing: false,
-          ),
+        _playWhenReady = false;
+        _publishTransportState(
+          processingOverride: AudioProcessingState.error,
         );
       }
       rethrow;
@@ -275,46 +269,90 @@ class RadioAudioHandler extends BaseAudioHandler {
 
     if (generation != _sourceGeneration) return;
     _icyActive = true;
+    _playWhenReady = true;
 
-    // play() only completes when playback ends, which never happens on a live
-    // stream, so it must not be awaited.
-    unawaited(
-      _player.play().catchError((Object e, StackTrace st) {
-        _onPlaybackError(e, st);
-      }),
-    );
-    _broadcastState();
+    // Live streams: play() may never complete, so do not await it here.
+    unawaited(_startPlayback());
+    _publishTransportState();
+  }
+
+  /// Starts the player, then undoes itself if the user already paused/stopped.
+  Future<void> _startPlayback() async {
+    try {
+      await _player.play();
+    } catch (e, st) {
+      _onPlaybackError(e, st);
+      return;
+    }
+    if (!_playWhenReady) {
+      await _enforceNotPlaying();
+    }
+    _publishTransportState();
+  }
+
+  Future<void> _enforceNotPlaying() async {
+    if (_enforcingIntent) return;
+    _enforcingIntent = true;
+    try {
+      if (_current == null) {
+        await _player.stop();
+      } else {
+        await _player.pause();
+      }
+    } catch (e, st) {
+      debugPrint('RadioAudioHandler enforceNotPlaying failed: $e\n$st');
+    } finally {
+      _enforcingIntent = false;
+    }
+  }
+
+  void _onPlayerTransportEvent() {
+    if (!_playWhenReady && _player.playing && !_enforcingIntent) {
+      // Publish paused/stopped UI immediately; enforce player async.
+      _publishTransportState();
+      unawaited(() async {
+        await _enforceNotPlaying();
+        _publishTransportState();
+      }());
+      return;
+    }
+    _publishTransportState();
   }
 
   @override
   Future<void> play() async {
-    unawaited(
-      _player.play().catchError((Object e, StackTrace st) {
-        _onPlaybackError(e, st);
-      }),
-    );
-    _broadcastState();
+    if (_current == null || _currentStream == null) return;
+    _playWhenReady = true;
+    unawaited(_startPlayback());
+    _publishTransportState();
   }
 
   @override
   Future<void> pause() async {
-    await _player.pause();
-    _broadcastState();
+    _playWhenReady = false;
+    try {
+      await _player.pause();
+    } catch (e, st) {
+      debugPrint('RadioAudioHandler pause failed: $e\n$st');
+    }
+    _publishTransportState();
   }
 
   @override
   Future<void> stop() async {
+    _playWhenReady = false;
     _sourceGeneration++;
     _icyActive = false;
-    await _player.stop();
+    try {
+      await _player.stop();
+    } catch (e, st) {
+      debugPrint('RadioAudioHandler stop failed: $e\n$st');
+    }
     _current = null;
     _currentStream = null;
     mediaItem.add(null);
-    playbackState.add(
-      playbackState.value.copyWith(
-        processingState: AudioProcessingState.idle,
-        playing: false,
-      ),
+    _publishTransportState(
+      processingOverride: AudioProcessingState.idle,
     );
   }
 
@@ -326,15 +364,33 @@ class RadioAudioHandler extends BaseAudioHandler {
     await playStation(station, stream);
   }
 
-  void _broadcastState() {
-    final playing = _player.playing;
-    final processing = switch (_player.processingState) {
-      ProcessingState.idle => AudioProcessingState.idle,
-      ProcessingState.loading => AudioProcessingState.loading,
-      ProcessingState.buffering => AudioProcessingState.buffering,
-      ProcessingState.ready => AudioProcessingState.ready,
-      ProcessingState.completed => AudioProcessingState.completed,
-    };
+  /// Pushes a definitive media-session state so notification/lock-screen
+  /// controls always reflect user intent, not a stale player snapshot.
+  void _publishTransportState({AudioProcessingState? processingOverride}) {
+    final processing = processingOverride ??
+        switch (_player.processingState) {
+          ProcessingState.idle => AudioProcessingState.idle,
+          ProcessingState.loading => AudioProcessingState.loading,
+          ProcessingState.buffering => AudioProcessingState.buffering,
+          ProcessingState.ready => AudioProcessingState.ready,
+          ProcessingState.completed => AudioProcessingState.completed,
+        };
+
+    // After stop, or whenever the user cleared intent, never report playing.
+    final playing = processingOverride == AudioProcessingState.idle
+        ? false
+        : (_playWhenReady && _player.playing);
+
+    // While paused with intent off, avoid leaving the session stuck in
+    // "loading" so Play/Pause controls stay tappable and the UI can flip.
+    final resolvedProcessing =
+        processingOverride == AudioProcessingState.idle
+            ? AudioProcessingState.idle
+            : (!_playWhenReady &&
+                    (processing == AudioProcessingState.loading ||
+                        processing == AudioProcessingState.buffering)
+                ? AudioProcessingState.ready
+                : processing);
 
     playbackState.add(
       playbackState.value.copyWith(
@@ -344,7 +400,7 @@ class RadioAudioHandler extends BaseAudioHandler {
         ],
         systemActions: const {},
         androidCompactActionIndices: const [0, 1],
-        processingState: processing,
+        processingState: resolvedProcessing,
         playing: playing,
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
