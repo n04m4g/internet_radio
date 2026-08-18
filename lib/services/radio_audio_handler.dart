@@ -270,6 +270,10 @@ class RadioAudioHandler extends BaseAudioHandler {
     if (generation != _sourceGeneration) return;
     _icyActive = true;
     _playWhenReady = true;
+    // First ICY title often arrives during setAudioSource, before this flag
+    // is true. icyMetadataStream is distinct(), so catch up or On air waits
+    // until the next track change.
+    _onIcyMetadata(_player.icyMetadata);
 
     // Live streams: play() may never complete, so do not await it here.
     unawaited(_startPlayback());
