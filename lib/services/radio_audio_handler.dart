@@ -29,14 +29,18 @@ Future<AudioHandler> initAudioService(
 class RadioAudioHandler extends BaseAudioHandler {
   RadioAudioHandler(this._stations, this._settings) {
     _appliedBufferSize = _settings.streamBufferSize;
-    _player = AudioPlayer(
-      audioLoadConfiguration: _appliedBufferSize.audioLoadConfiguration,
-    );
+    _player = _createPlayer(_appliedBufferSize);
     _init();
     _settings.addListener(_onSettingsChanged);
   }
 
   static const _loadTimeout = Duration(seconds: 20);
+  static const _resumeStallTimeout = Duration(seconds: 6);
+
+  static AudioPlayer _createPlayer(StreamBufferSize size) => AudioPlayer(
+        handleInterruptions: false,
+        audioLoadConfiguration: size.audioLoadConfiguration,
+      );
 
   final StationRepository _stations;
   final AppSettings _settings;
@@ -61,7 +65,15 @@ class RadioAudioHandler extends BaseAudioHandler {
   /// Guards re-entrant pause/stop when enforcing intent against player events.
   bool _enforcingIntent = false;
 
+  /// True after a call/Spotify-style focus loss so Play reloads the live URL.
+  bool _pausedByInterruption = false;
+
+  Timer? _stallTimer;
+  bool _stallReconnectArmed = false;
+  bool _liveReconnectBusy = false;
+
   final List<StreamSubscription<dynamic>> _playerSubs = [];
+  final List<StreamSubscription<dynamic>> _sessionSubs = [];
 
   Station? get currentStation => _current;
   ResolvedStream? get currentStream => _currentStream;
@@ -69,6 +81,13 @@ class RadioAudioHandler extends BaseAudioHandler {
   Future<void> _init() async {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
+    _sessionSubs
+      ..add(session.interruptionEventStream.listen(_onInterruption))
+      ..add(
+        session.becomingNoisyEventStream.listen((_) {
+          unawaited(_onBecomingNoisy());
+        }),
+      );
     _bindPlayerStreams();
   }
 
@@ -95,6 +114,11 @@ class RadioAudioHandler extends BaseAudioHandler {
 
   void _onPlaybackError(Object error, StackTrace stackTrace) {
     debugPrint('RadioAudioHandler playback error: $error\n$stackTrace');
+    if (_stallReconnectArmed && _playWhenReady) {
+      _reconnectLive();
+      return;
+    }
+    _cancelStallTimer();
     _playWhenReady = false;
     _publishTransportState(
       processingOverride: AudioProcessingState.error,
@@ -120,9 +144,7 @@ class RadioAudioHandler extends BaseAudioHandler {
       await _player.dispose();
 
       _appliedBufferSize = size;
-      _player = AudioPlayer(
-        audioLoadConfiguration: size.audioLoadConfiguration,
-      );
+      _player = _createPlayer(size);
       _bindPlayerStreams();
 
       if (resumeStation != null && resumeStream != null) {
@@ -135,6 +157,94 @@ class RadioAudioHandler extends BaseAudioHandler {
     } finally {
       _recreatingPlayer = false;
     }
+  }
+
+  void _onInterruption(AudioInterruptionEvent event) {
+    if (event.begin) {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          break;
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          if (!_playWhenReady) return;
+          _pausedByInterruption = true;
+          _cancelStallTimer();
+          if (_player.playing) {
+            unawaited(_pausePlayerOnly());
+          }
+          _publishTransportState();
+      }
+      return;
+    }
+
+    switch (event.type) {
+      case AudioInterruptionType.duck:
+        break;
+      case AudioInterruptionType.pause:
+        if (_playWhenReady && _current != null && _currentStream != null) {
+          _reconnectLive();
+        }
+        break;
+      case AudioInterruptionType.unknown:
+        // Permanent focus loss (e.g. Spotify): stay paused until Play.
+        _publishTransportState();
+        break;
+    }
+  }
+
+  Future<void> _onBecomingNoisy() async {
+    _playWhenReady = false;
+    _pausedByInterruption = false;
+    _cancelStallTimer();
+    await _pausePlayerOnly();
+    _publishTransportState();
+  }
+
+  Future<void> _pausePlayerOnly() async {
+    try {
+      await _player.pause();
+    } catch (e, st) {
+      debugPrint('RadioAudioHandler player pause failed: $e\n$st');
+    }
+  }
+
+  void _reconnectLive() {
+    final station = _current;
+    final stream = _currentStream;
+    _pausedByInterruption = false;
+    _cancelStallTimer();
+    if (station == null || stream == null || !_playWhenReady) return;
+    if (_liveReconnectBusy) return;
+    _liveReconnectBusy = true;
+    unawaited(() async {
+      try {
+        await playStation(station, stream);
+      } catch (e, st) {
+        debugPrint('RadioAudioHandler live reconnect failed: $e\n$st');
+      } finally {
+        _liveReconnectBusy = false;
+      }
+    }());
+  }
+
+  void _armStallReconnect() {
+    _cancelStallTimer();
+    _stallReconnectArmed = true;
+    _stallTimer = Timer(_resumeStallTimeout, () {
+      if (!_stallReconnectArmed || !_playWhenReady) return;
+      if (_player.playing &&
+          _player.processingState == ProcessingState.ready) {
+        _cancelStallTimer();
+        return;
+      }
+      _reconnectLive();
+    });
+  }
+
+  void _cancelStallTimer() {
+    _stallTimer?.cancel();
+    _stallTimer = null;
+    _stallReconnectArmed = false;
   }
 
   void _onIcyMetadata(IcyMetadata? icy) {
@@ -233,6 +343,8 @@ class RadioAudioHandler extends BaseAudioHandler {
 
     final generation = ++_sourceGeneration;
     _icyActive = false;
+    _pausedByInterruption = false;
+    _cancelStallTimer();
     _playWhenReady = false;
     _current = station;
     _currentStream = stream;
@@ -285,6 +397,10 @@ class RadioAudioHandler extends BaseAudioHandler {
     try {
       await _player.play();
     } catch (e, st) {
+      if (_stallReconnectArmed && _playWhenReady) {
+        _reconnectLive();
+        return;
+      }
       _onPlaybackError(e, st);
       return;
     }
@@ -311,6 +427,12 @@ class RadioAudioHandler extends BaseAudioHandler {
   }
 
   void _onPlayerTransportEvent() {
+    if (_stallReconnectArmed &&
+        _playWhenReady &&
+        _player.playing &&
+        _player.processingState == ProcessingState.ready) {
+      _cancelStallTimer();
+    }
     if (!_playWhenReady && _player.playing && !_enforcingIntent) {
       // Publish paused/stopped UI immediately; enforce player async.
       _publishTransportState();
@@ -327,24 +449,30 @@ class RadioAudioHandler extends BaseAudioHandler {
   Future<void> play() async {
     if (_current == null || _currentStream == null) return;
     _playWhenReady = true;
+    if (_pausedByInterruption) {
+      _reconnectLive();
+      _publishTransportState();
+      return;
+    }
     unawaited(_startPlayback());
+    _armStallReconnect();
     _publishTransportState();
   }
 
   @override
   Future<void> pause() async {
     _playWhenReady = false;
-    try {
-      await _player.pause();
-    } catch (e, st) {
-      debugPrint('RadioAudioHandler pause failed: $e\n$st');
-    }
+    _pausedByInterruption = false;
+    _cancelStallTimer();
+    await _pausePlayerOnly();
     _publishTransportState();
   }
 
   @override
   Future<void> stop() async {
     _playWhenReady = false;
+    _pausedByInterruption = false;
+    _cancelStallTimer();
     _sourceGeneration++;
     _icyActive = false;
     try {
