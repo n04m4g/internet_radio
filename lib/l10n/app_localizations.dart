@@ -245,7 +245,7 @@ abstract class AppLocalizations {
   /// No description provided for @streamCacheEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No streams cached yet. Streams are kept for a week after they are first played.'**
+  /// **'No streams cached yet. A stream URL is kept after first play and looked up again only if it fails to start.'**
   String get streamCacheEmpty;
 
   /// No description provided for @streamCacheCount.
@@ -425,7 +425,7 @@ abstract class AppLocalizations {
   /// No description provided for @updatedStreamSaved.
   ///
   /// In en, this message translates to:
-  /// **'Updated stream saved for a week.'**
+  /// **'Updated stream saved.'**
   String get updatedStreamSaved;
 
   /// No description provided for @couldNotPlayStation.

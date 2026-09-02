@@ -3,7 +3,7 @@ enum StationRegion { israel, world }
 /// Identity of a station in the catalog.
 ///
 /// Stream URLs are not part of the identity: they are resolved from Radio
-/// Browser at play time and cached by `StationRepository`.
+/// Browser at play time and cached by `StationRepository` until they fail.
 class Station {
   const Station({
     required this.id,

@@ -1,7 +1,7 @@
 import '../models/station.dart';
 
 /// The station catalog: identity only. Stream URLs come from Radio Browser at
-/// play time and are cached by `StationRepository` for a week.
+/// play time and are cached by `StationRepository` until they fail.
 ///
 /// Every entry pins the `radioBrowserUuid` of a directory record that was
 /// checked by hand, so resolution is a single lookup against that exact record

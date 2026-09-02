@@ -58,7 +58,7 @@ At play time, `StationRepository`:
 
 1. Looks up the pinned Radio Browser UUID
 2. Picks a suitable stream (prefer healthy, non-HLS / ICY, higher bitrate, HTTPS)
-3. Caches the resolved URL for a week
+3. Caches the resolved URL until play fails (or the user refreshes)
 
 That avoids hardcoding fragile stream URLs while still preventing duplicate / wrong-station matches from the directory.
 

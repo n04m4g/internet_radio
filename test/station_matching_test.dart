@@ -134,7 +134,7 @@ void main() {
     );
   });
 
-  test('a fresh cache entry is reused without calling the directory',
+  test('a cached entry is reused without calling the directory',
       () async {
     final log = <Uri>[];
     final repo = repositoryServing(
@@ -150,7 +150,6 @@ void main() {
 
     expect(log.length, callsAfterFirst);
     expect(second.streamUrl, 'https://example.com/eco99');
-    expect(repo.isFresh(station.id), isTrue);
     expect(repo.cachedStreamCount, 1);
   });
 
@@ -166,7 +165,7 @@ void main() {
     expect(repo.cachedStreamFor('galgalatz'), isNull);
   });
 
-  test('a stale entry is kept when the directory has nothing to offer',
+  test('an old cache entry is reused without calling the directory',
       () async {
     SharedPreferences.setMockInitialValues({
       'stream_cache_v2': jsonEncode({
@@ -178,16 +177,21 @@ void main() {
         },
       }),
     });
-    final repo = repositoryServing([
-      hit('Radios 100FM', 'https://example.com/100fm', clickCount: 999999),
-    ]);
+    final log = <Uri>[];
+    final repo = repositoryServing(
+      [
+        hit('Radios 100FM', 'https://example.com/100fm', clickCount: 999999),
+        hit('ECO99FM', 'https://example.com/new-eco99'),
+      ],
+      requestLog: log,
+    );
     await repo.load();
 
     final station = stationById('eco99');
-    expect(repo.isFresh(station.id), isFalse);
-
     final resolved = await repo.resolveStream(station);
+
     expect(resolved.streamUrl, 'https://example.com/old-eco99');
+    expect(log, isEmpty);
   });
 
   test('caches written by an older version are discarded', () async {
@@ -305,7 +309,6 @@ void main() {
       },
     );
     await repo.load();
-    expect(repo.isFresh(station.id), isFalse);
 
     final candidates = await repo.candidateStreams(station);
     final urls = candidates.map((c) => c.streamUrl).toList();
@@ -348,7 +351,6 @@ void main() {
       'https://example.com/promoted',
     );
     expect(repo.cachedStreamFor(station.id)?.radioBrowserUuid, 'promoted-uuid');
-    expect(repo.isFresh(station.id), isTrue);
   });
 
   test('candidateStreams returns more than the play attempt cap allows',

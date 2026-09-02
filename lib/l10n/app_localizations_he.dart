@@ -88,7 +88,7 @@ class AppLocalizationsHe extends AppLocalizations {
 
   @override
   String get streamCacheEmpty =>
-      'עדיין אין שידורים במטמון. שידורים נשמרים לשבוע אחרי הניגון הראשון.';
+      'עדיין אין שידורים במטמון. כתובת השידור נשמרת אחרי הניגון הראשון ומחפשים מחדש רק אם היא לא מצליחה להתחיל.';
 
   @override
   String streamCacheCount(int count) {
@@ -195,7 +195,7 @@ class AppLocalizationsHe extends AppLocalizations {
   String get streamFailedRefreshing => 'השידור נכשל. מרענן מ־Radio Browser…';
 
   @override
-  String get updatedStreamSaved => 'שידור מעודכן נשמר לשבוע.';
+  String get updatedStreamSaved => 'שידור מעודכן נשמר.';
 
   @override
   String couldNotPlayStation(String station) {

@@ -19,12 +19,10 @@ class StreamResolveException implements Exception {
 }
 
 /// Owns the station catalog and the cache of stream URLs resolved from Radio
-/// Browser. Entries are reused for [cacheTtl] before being refreshed.
+/// Browser. A remembered URL is reused until play fails or the user refreshes.
 class StationRepository extends ChangeNotifier {
   StationRepository({RadioBrowserClient? radioBrowser})
       : _radioBrowser = radioBrowser ?? RadioBrowserClient();
-
-  static const cacheTtl = Duration(days: 7);
 
   /// Max alternate streams [RadioPlayer] should try in one play attempt.
   static const maxPlayAttempts = 5;
@@ -100,15 +98,10 @@ class StationRepository extends ChangeNotifier {
 
   ResolvedStream? cachedStreamFor(String stationId) => _cache[stationId];
 
-  bool isFresh(String stationId) {
-    final entry = _cache[stationId];
-    return entry != null && entry.isFreshAt(DateTime.now(), cacheTtl);
-  }
-
   /// Ranked playable streams for [station], preferred for failover.
   ///
-  /// Order: last cached URL (even if stale), fresh lookup of that UUID, catalog
-  /// pin, then name/country matches by score. Deduped by normalized URL.
+  /// Order: last cached URL, fresh lookup of that UUID, catalog pin, then
+  /// name/country matches by score. Deduped by normalized URL.
   Future<List<ResolvedStream>> candidateStreams(Station station) async {
     final now = DateTime.now();
     final out = <ResolvedStream>[];
@@ -169,7 +162,7 @@ class StationRepository extends ChangeNotifier {
 
   /// Returns a playable stream for [station].
   ///
-  /// A cached entry younger than [cacheTtl] is reused as is. Otherwise the
+  /// A cached entry is reused as is unless [forceRefresh] is set. Otherwise the
   /// first [candidateStreams] entry is preferred (last winner before a dead
   /// catalog pin).
   Future<ResolvedStream> resolveStream(
@@ -177,9 +170,7 @@ class StationRepository extends ChangeNotifier {
     bool forceRefresh = false,
   }) async {
     final cached = _cache[station.id];
-    if (!forceRefresh &&
-        cached != null &&
-        cached.isFreshAt(DateTime.now(), cacheTtl)) {
+    if (!forceRefresh && cached != null) {
       return cached;
     }
 

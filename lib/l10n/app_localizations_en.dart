@@ -88,7 +88,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get streamCacheEmpty =>
-      'No streams cached yet. Streams are kept for a week after they are first played.';
+      'No streams cached yet. A stream URL is kept after first play and looked up again only if it fails to start.';
 
   @override
   String streamCacheCount(int count) {
@@ -196,7 +196,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Stream failed. Refreshing from Radio Browser…';
 
   @override
-  String get updatedStreamSaved => 'Updated stream saved for a week.';
+  String get updatedStreamSaved => 'Updated stream saved.';
 
   @override
   String couldNotPlayStation(String station) {

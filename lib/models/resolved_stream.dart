@@ -1,5 +1,5 @@
 /// A playable stream URL for a station, plus whatever the directory knows
-/// about it. Cached with [resolvedAt] so it can be refreshed periodically.
+/// about it. Cached with [resolvedAt] as when it was last remembered.
 class ResolvedStream {
   const ResolvedStream({
     required this.streamUrl,
@@ -32,12 +32,6 @@ class ResolvedStream {
   final String? language;
   final String? radioBrowserName;
   final String? radioBrowserUuid;
-
-  Duration ageAt(DateTime now) => now.difference(resolvedAt);
-
-  bool isFreshAt(DateTime now, Duration ttl) => ageAt(now) < ttl;
-
-  DateTime expiresAfter(Duration ttl) => resolvedAt.add(ttl);
 
   Map<String, dynamic> toJson() => {
         'streamUrl': streamUrl,

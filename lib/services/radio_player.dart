@@ -61,8 +61,6 @@ class RadioPlayer extends ChangeNotifier {
   ResolvedStream? get currentStream =>
       _current == null ? null : _stations.cachedStreamFor(_current!.id);
 
-  Duration get cacheTtl => StationRepository.cacheTtl;
-
   /// Raw ICY text when the stream provides it.
   String? get nowPlaying => _nowPlaying;
   String? get nowPlayingArtist => _nowPlayingArtist;
@@ -205,14 +203,13 @@ class RadioPlayer extends ChangeNotifier {
     var played = false;
 
     try {
-      final fresh = _stations.cachedStreamFor(station.id);
-      if (fresh != null && _stations.isFresh(station.id)) {
-        if (await _tryPlay(station, fresh)) {
-          await _stations.rememberStream(station, fresh);
+      final cached = _stations.cachedStreamFor(station.id);
+      if (cached != null) {
+        if (await _tryPlay(station, cached)) {
           played = true;
           return;
         }
-        triedUrls.add(_urlKey(fresh.streamUrl));
+        triedUrls.add(_urlKey(cached.streamUrl));
         if (!_stillPlaying(station)) return;
       }
 

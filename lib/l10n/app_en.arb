@@ -31,7 +31,7 @@
   "bufferNormalDescription": "Balanced startup time and stability.",
   "bufferHighDescription": "More stable on mobile data, slower to start.",
   "refreshStreamCache": "Refresh stream cache",
-  "streamCacheEmpty": "No streams cached yet. Streams are kept for a week after they are first played.",
+  "streamCacheEmpty": "No streams cached yet. A stream URL is kept after first play and looked up again only if it fails to start.",
   "streamCacheCount": "{count, plural, =1{1 stream cached. Clear it to look everything up again.} other{{count} streams cached. Clear them to look everything up again.}}",
   "@streamCacheCount": {
     "placeholders": {
@@ -96,7 +96,7 @@
     }
   },
   "streamFailedRefreshing": "Stream failed. Refreshing from Radio Browser…",
-  "updatedStreamSaved": "Updated stream saved for a week.",
+  "updatedStreamSaved": "Updated stream saved.",
   "couldNotPlayStation": "Could not play {station}. The stream may be offline.",
   "@couldNotPlayStation": {
     "placeholders": {
